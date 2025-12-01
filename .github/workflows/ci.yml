@@ -56,16 +56,20 @@ jobs:
           checkov -d infra || true
 
       # ------------- DAST: OWASP ZAP -------------
-      - name: Start app container
+      - name: Create Docker network for ZAP
+        run: docker network create zapnet || true
+
+      - name: Start app container on zapnet
         run: |
-          docker run -d --name devsecops-app -p 5000:5000 devsecops-demo
+          docker run -d --name devsecops-app --network zapnet -p 5000:5000 devsecops-demo
           sleep 15
 
       - name: Run OWASP ZAP baseline scan
         run: |
-          docker run --network host -v ${{ github.workspace }}:/zap/wrk \
+          docker run --rm --network zapnet \
+            -v ${{ github.workspace }}:/zap/wrk \
             owasp/zap2docker-stable zap-baseline.py \
-            -t http://localhost:5000 \
+            -t http://devsecops-app:5000 \
             -r zap_report.html || true
 
       - name: Upload ZAP report
