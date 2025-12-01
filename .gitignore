@@ -1,0 +1,19 @@
+# Sensitive AWS key folder
+CLI ACCESS KEY/
+
+# Terraform local stuff (plugins, state)
+infra/.terraform/
+*.tfstate
+*.tfstate.*
+
+# Local binaries / archives
+*.zip
+*.exe
+
+# System files
+.DS_Store
+Thumbs.db
+
+# Python cache
+__pycache__/
+*.pyc

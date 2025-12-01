@@ -1,0 +1,75 @@
+name: DevSecOps CI (Free)
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  devsecops-pipeline:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Build Docker image
+        run: |
+          docker build -t devsecops-demo .
+
+      # ------------ SAST: Bandit ------------
+      - name: Run Bandit (SAST)
+        run: |
+          pip install bandit
+          bandit -r . || true
+
+      # -------- Dependency Scan: pip-audit ----------
+      - name: Run pip-audit
+        run: |
+          pip install pip-audit
+          pip-audit || true
+
+      # ------------ Container Scan: Trivy ------------
+      - name: Run Trivy container scan
+        uses: aquasecurity/trivy-action@0.24.0
+        with:
+          image-ref: "devsecops-demo"
+          format: "table"
+          exit-code: "0"
+          ignore-unfixed: true
+
+      # ------------ IaC Scan: Checkov ------------
+      - name: Run Checkov (Terraform IaC Scan)
+        run: |
+          pip install checkov
+          checkov -d infra || true
+
+      # ------------- DAST: OWASP ZAP -------------
+      - name: Start app container
+        run: |
+          docker run -d --name devsecops-app -p 5000:5000 devsecops-demo
+          sleep 15
+
+      - name: Run OWASP ZAP baseline scan
+        run: |
+          docker run --network host -v ${{ github.workspace }}:/zap/wrk \
+            owasp/zap2docker-stable zap-baseline.py \
+            -t http://localhost:5000 \
+            -r zap_report.html || true
+
+      - name: Upload ZAP report
+        uses: actions/upload-artifact@v4
+        with:
+          name: zap-report
+          path: zap_report.html
